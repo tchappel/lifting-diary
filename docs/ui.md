@@ -22,6 +22,7 @@ npx shadcn@latest add [component-name]
 ```
 
 **Examples:**
+
 ```bash
 npx shadcn@latest add card
 npx shadcn@latest add input
@@ -40,6 +41,80 @@ Custom components are ONLY allowed when:
 3. **Absolutely necessary** and no shadcn alternative exists
 
 **Never** create custom versions of existing shadcn components (buttons, inputs, cards, etc.)
+
+## Custom Component Conventions
+
+When creating custom components (composing shadcn components or adding business logic), follow these conventions:
+
+### File Naming
+
+**MANDATORY:** Use kebab-case for component file names.
+
+- ✅ **DO:** `date-picker-card.tsx`, `workout-summary.tsx`, `exercise-form.tsx`
+- ❌ **DO NOT:** `DatePickerCard.tsx`, `WorkoutSummary.tsx`, `ExerciseForm.tsx`
+
+### Component Export
+
+**MANDATORY:** Use named exports with PascalCase component names.
+
+```tsx
+// ✅ CORRECT - Named export
+export function DatePickerCard({ date, onDateChange }: DatePickerCardProps) {
+  return <Card>...</Card>;
+}
+
+// ❌ INCORRECT - Default export
+export default function DatePickerCard({
+  date,
+  onDateChange,
+}: DatePickerCardProps) {
+  return <Card>...</Card>;
+}
+```
+
+### PropType Convention
+
+**MANDATORY:** Define PropTypes with `ComponentNameProps` pattern. Do NOT export PropTypes.
+
+```tsx
+// ✅ CORRECT - Internal PropType, not exported
+type DatePickerCardProps = {
+  date: Date;
+  onDateChange: (date: Date) => void;
+  className?: string;
+};
+
+export function DatePickerCard({
+  date,
+  onDateChange,
+  className,
+}: DatePickerCardProps) {
+  return <Card className={cn("p-4", className)}>...</Card>;
+}
+
+// ❌ INCORRECT - Exported PropType
+export type DatePickerCardProps = {
+  date: Date;
+  onDateChange: (date: Date) => void;
+};
+```
+
+### File Location
+
+**MANDATORY:** Custom components MUST live in the `/components` directory (NOT in `/components/ui`).
+
+```
+components/
+├── ui/                       # shadcn components only (auto-generated)
+│   ├── button.tsx
+│   ├── card.tsx
+│   └── ...
+├── date-picker-card.tsx      # ✅ Custom component
+├── workout-summary.tsx       # ✅ Custom component
+└── theme-provider.tsx        # ✅ Custom component
+```
+
+The `/components/ui` directory is reserved exclusively for shadcn-generated components.
 
 ## Date Formatting Standards
 
@@ -60,16 +135,20 @@ All dates MUST be formatted with ordinal day + short month + full year:
 ### Implementation
 
 ```typescript
-import { format } from 'date-fns';
+import { format } from "date-fns";
 
 // Helper function for ordinal suffix
 function getOrdinalSuffix(day: number): string {
-  if (day > 3 && day < 21) return 'th';
+  if (day > 3 && day < 21) return "th";
   switch (day % 10) {
-    case 1: return 'st';
-    case 2: return 'nd';
-    case 3: return 'rd';
-    default: return 'th';
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
   }
 }
 
@@ -77,11 +156,11 @@ function getOrdinalSuffix(day: number): string {
 function formatDate(date: Date): string {
   const day = date.getDate();
   const ordinal = getOrdinalSuffix(day);
-  return `${day}${ordinal} ${format(date, 'MMM yyyy')}`;
+  return `${day}${ordinal} ${format(date, "MMM yyyy")}`;
 }
 
 // Usage
-const formattedDate = formatDate(new Date('2025-09-01')); // "1st Sep 2025"
+const formattedDate = formatDate(new Date("2025-09-01")); // "1st Sep 2025"
 ```
 
 **Recommended:** Create a utility function in `@/lib/utils.ts` or `@/lib/date-utils.ts` for consistent date formatting across the app.
@@ -102,6 +181,7 @@ const formattedDate = formatDate(new Date('2025-09-01')); // "1st Sep 2025"
 Reference these CSS variables (defined in `app/globals.css`):
 
 **Core Colors:**
+
 - `--background`, `--foreground`
 - `--card`, `--card-foreground`
 - `--popover`, `--popover-foreground`
@@ -112,12 +192,15 @@ Reference these CSS variables (defined in `app/globals.css`):
 - `--destructive`, `--destructive-foreground`
 
 **Borders & Inputs:**
+
 - `--border`, `--input`, `--ring`
 
 **Chart Colors:**
+
 - `--chart-1` through `--chart-5`
 
 **Sidebar:**
+
 - `--sidebar-background`, `--sidebar-foreground`
 - `--sidebar-primary`, `--sidebar-primary-foreground`
 - `--sidebar-accent`, `--sidebar-accent-foreground`
@@ -144,7 +227,7 @@ Reference these CSS variables (defined in `app/globals.css`):
 The app uses `next-themes` for theme management. Theme is configured in `app/layout.tsx`:
 
 ```tsx
-import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeProvider } from "@/components/theme-provider";
 
 export default function RootLayout({ children }) {
   return (
@@ -189,9 +272,9 @@ The `cn()` utility intelligently merges Tailwind classes and prevents conflicts.
 Use configured path aliases:
 
 ```typescript
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { db } from '@/db';
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { db } from "@/db";
 ```
 
 ### TypeScript
@@ -205,7 +288,11 @@ interface MyComponentProps {
   onClick?: () => void;
 }
 
-export function MyComponent({ title, isActive = false, onClick }: MyComponentProps) {
+export function MyComponent({
+  title,
+  isActive = false,
+  onClick,
+}: MyComponentProps) {
   return (
     <Button variant={isActive ? "default" : "outline"} onClick={onClick}>
       {title}
@@ -219,22 +306,22 @@ export function MyComponent({ title, isActive = false, onClick }: MyComponentPro
 Use Class Variance Authority (CVA) for component variants (shadcn components use this internally):
 
 ```typescript
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cva, type VariantProps } from "class-variance-authority";
 
-const variants = cva('base-classes', {
+const variants = cva("base-classes", {
   variants: {
     variant: {
-      default: 'default-classes',
-      primary: 'primary-classes',
+      default: "default-classes",
+      primary: "primary-classes",
     },
     size: {
-      sm: 'small-classes',
-      lg: 'large-classes',
+      sm: "small-classes",
+      lg: "large-classes",
     },
   },
   defaultVariants: {
-    variant: 'default',
-    size: 'sm',
+    variant: "default",
+    size: "sm",
   },
 });
 ```
@@ -244,12 +331,12 @@ const variants = cva('base-classes', {
 **MANDATORY:** Use Lucide icons only.
 
 ```tsx
-import { Calendar, User, Settings } from 'lucide-react';
+import { Calendar, User, Settings } from "lucide-react";
 
 <Button>
   <Calendar className="mr-2 h-4 w-4" />
   Schedule
-</Button>
+</Button>;
 ```
 
 ## Component File Structure
@@ -270,6 +357,11 @@ Before creating any UI component:
 
 - [ ] Does a shadcn component exist for this? → Use it
 - [ ] Do I need a new shadcn component? → Install it via CLI
+- [ ] Am I creating a custom component?
+  - [ ] Is the filename kebab-case?
+  - [ ] Is it in `/components` (not `/components/ui`)?
+  - [ ] Am I using named export (not default)?
+  - [ ] Are PropTypes named `ComponentNameProps` and NOT exported?
 - [ ] Am I using theme tokens? → No hardcoded colors
 - [ ] Am I using `cn()` for class merging?
 - [ ] Am I formatting dates with date-fns in the correct format?
@@ -280,6 +372,7 @@ Before creating any UI component:
 ---
 
 **Questions?** Refer to:
+
 - [shadcn/ui Documentation](https://ui.shadcn.com)
 - [date-fns Documentation](https://date-fns.org)
 - [Tailwind CSS v4 Documentation](https://tailwindcss.com)
