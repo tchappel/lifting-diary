@@ -52,7 +52,7 @@ export default function RootLayout({
                 <UserButton />
               </SignedIn>
             </header>
-            {children}
+            <main>{children}</main>
           </ThemeProvider>
         </body>
       </html>
