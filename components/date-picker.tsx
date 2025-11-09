@@ -18,10 +18,12 @@ type DatePickerProps = {
   label?: React.ReactNode;
   onSelect?: (date?: Date) => void;
   placeholder?: string;
+  disabled?: boolean;
 };
 
 export function DatePicker({
   initialValue,
+  disabled,
   label,
   onSelect,
   placeholder = "Select a date",
@@ -49,6 +51,7 @@ export function DatePicker({
         </PopoverTrigger>
         <PopoverContent className="w-auto overflow-hidden p-0" align="start">
           <Calendar
+            disabled={disabled}
             mode="single"
             selected={date}
             captionLayout="dropdown"

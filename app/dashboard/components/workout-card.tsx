@@ -10,8 +10,8 @@ import { format } from "date-fns";
 
 type WorkoutCardProps = {
   name: string;
-  description: string;
-  durationMinutes: number;
+  description: string | null;
+  durationMinutes: number | null;
   date: Date;
 };
 
@@ -36,10 +36,12 @@ export function WorkoutCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" aria-label="Duration" />
-          {durationMinutes} min
-        </div>
+        {durationMinutes && (
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4" aria-label="Duration" />
+            {durationMinutes} min
+          </div>
+        )}
       </CardContent>
     </Card>
   );

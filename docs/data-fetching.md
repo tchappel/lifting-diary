@@ -14,27 +14,22 @@
 
 **ALL database queries MUST be encapsulated in helper functions within the `/data` directory.**
 
+Helper functions are **pure data access functions** that accept `userId` as a parameter. Authentication happens in the Server Component, which then passes `userId` to the helper.
+
 ```typescript
 // ✅ CORRECT: /data/workouts.ts
 import { db } from '@/db';
 import { workouts } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { auth } from '@clerk/nextjs/server';
 
-export async function getWorkoutsByUser() {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function getWorkoutsByUserId(userId: string) {
   return await db
     .select()
     .from(workouts)
     .where(eq(workouts.userId, userId));
 }
 
-export async function getWorkoutById(workoutId: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function getWorkoutById(userId: string, workoutId: string) {
   const [workout] = await db
     .select()
     .from(workouts)
@@ -53,11 +48,12 @@ export async function getWorkoutById(workoutId: string) {
 
 ### Benefits of Helper Functions
 
-1. **Reusability** - Same query logic across multiple pages/components
+1. **Reusability** - Same query logic across multiple pages/components/contexts
 2. **Maintainability** - Single source of truth for queries
 3. **Type Safety** - Centralized return types
-4. **RLS Enforcement** - Security policies in one place
-5. **Testability** - Easy to unit test data access layer
+4. **RLS Enforcement** - Security policies via userId parameter
+5. **Testability** - Pure functions, easy to unit test
+6. **Flexibility** - Can be used for admin views, background jobs, etc.
 
 ## Row-Level Security (RLS) Policy
 
@@ -72,14 +68,13 @@ export async function getWorkoutById(workoutId: string) {
 ### Implementation Pattern
 
 ```typescript
-import { auth } from '@clerk/nextjs/server';
+// /data/workouts.ts
 import { eq, and } from 'drizzle-orm';
+import { db } from '@/db';
+import { workouts } from '@/db/schema';
 
 // CREATE
-export async function createWorkout(data: NewWorkout) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function createWorkout(userId: string, data: NewWorkout) {
   return await db.insert(workouts).values({
     ...data,
     userId, // ALWAYS set userId on insert
@@ -87,10 +82,7 @@ export async function createWorkout(data: NewWorkout) {
 }
 
 // READ (single)
-export async function getWorkout(id: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function getWorkout(userId: string, id: string) {
   return await db
     .select()
     .from(workouts)
@@ -103,10 +95,7 @@ export async function getWorkout(id: string) {
 }
 
 // READ (list)
-export async function getWorkouts() {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function getWorkouts(userId: string) {
   return await db
     .select()
     .from(workouts)
@@ -114,10 +103,7 @@ export async function getWorkouts() {
 }
 
 // UPDATE
-export async function updateWorkout(id: string, data: Partial<Workout>) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function updateWorkout(userId: string, id: string, data: Partial<Workout>) {
   return await db
     .update(workouts)
     .set(data)
@@ -130,10 +116,7 @@ export async function updateWorkout(id: string, data: Partial<Workout>) {
 }
 
 // DELETE
-export async function deleteWorkout(id: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function deleteWorkout(userId: string, id: string) {
   return await db
     .delete(workouts)
     .where(
@@ -147,12 +130,21 @@ export async function deleteWorkout(id: string) {
 
 ## Usage in Server Components
 
+**Server Components are responsible for authentication.** They call `auth()` from Clerk, verify the user is authenticated, then pass `userId` to helper functions.
+
 ```typescript
 // ✅ CORRECT: app/workouts/page.tsx
-import { getWorkoutsByUser } from '@/data/workouts';
+import { auth } from '@clerk/nextjs/server';
+import { getWorkoutsByUserId } from '@/data/workouts';
 
 export default async function WorkoutsPage() {
-  const workouts = await getWorkoutsByUser();
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+
+  const workouts = await getWorkoutsByUserId(userId);
 
   return (
     <div>
@@ -166,6 +158,7 @@ export default async function WorkoutsPage() {
 
 ```typescript
 // ✅ CORRECT: app/workouts/[id]/page.tsx
+import { auth } from '@clerk/nextjs/server';
 import { getWorkoutById } from '@/data/workouts';
 
 export default async function WorkoutPage({
@@ -173,7 +166,13 @@ export default async function WorkoutPage({
 }: {
   params: { id: string };
 }) {
-  const workout = await getWorkoutById(params.id);
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+
+  const workout = await getWorkoutById(userId, params.id);
 
   return <WorkoutDetails workout={workout} />;
 }
@@ -183,10 +182,7 @@ export default async function WorkoutPage({
 
 ```typescript
 // /data/workouts.ts
-export async function getWorkoutById(id: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
+export async function getWorkoutById(userId: string, id: string) {
   const [workout] = await db
     .select()
     .from(workouts)
@@ -199,11 +195,19 @@ export async function getWorkoutById(id: string) {
 }
 
 // app/workouts/[id]/page.tsx
+import { auth } from '@clerk/nextjs/server';
 import { notFound } from 'next/navigation';
+import { getWorkoutById } from '@/data/workouts';
 
 export default async function WorkoutPage({ params }: { params: { id: string } }) {
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+
   try {
-    const workout = await getWorkoutById(params.id);
+    const workout = await getWorkoutById(userId, params.id);
     return <WorkoutDetails workout={workout} />;
   } catch (error) {
     notFound(); // Shows 404 page
@@ -247,9 +251,19 @@ export default function Page() {
   }, []);
 }
 
-// ❌ WRONG: No userId check
+// ❌ WRONG: No userId parameter
 export async function getWorkouts() {
   return await db.select().from(workouts); // Leaks all users' data!
+}
+
+// ❌ WRONG: Auth in helper function (less flexible)
+import { auth } from '@clerk/nextjs/server';
+
+export async function getWorkouts() {
+  const { userId } = await auth();
+  if (!userId) throw new Error('Unauthorized');
+  return await db.select().from(workouts).where(eq(workouts.userId, userId));
+  // Can't reuse for admin views, harder to test
 }
 ```
 
@@ -259,10 +273,12 @@ When implementing data fetching:
 
 - [ ] Data fetched in Server Components only
 - [ ] Helper function created in `/data` directory
+- [ ] Helper function accepts `userId` as parameter (pure function)
 - [ ] Drizzle ORM used for all queries
-- [ ] `auth()` called to get `userId`
-- [ ] Unauthorized access throws error
-- [ ] `userId` filter applied to WHERE clause (RLS)
+- [ ] Server Component calls `auth()` to get `userId`
+- [ ] Server Component throws error if unauthorized
+- [ ] Server Component passes `userId` to helper function
+- [ ] `userId` filter applied to WHERE clause in helper (RLS)
 - [ ] `userId` set on INSERT operations
 - [ ] Error handling implemented
 - [ ] Types exported from helper functions

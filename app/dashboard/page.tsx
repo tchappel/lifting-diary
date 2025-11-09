@@ -48,7 +48,7 @@ export default async function DashboardPage({
         {/* Date Picker */}
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <DatePicker initialValue={parsed} />
-        <Suspense fallback={<WorkoutSkeleton />}>
+        <Suspense key={date} fallback={<WorkoutSkeleton />}>
           <WorkoutList filterOptions={{ date: parsed }} />
         </Suspense>
       </div>
