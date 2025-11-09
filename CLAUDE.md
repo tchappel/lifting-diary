@@ -39,7 +39,7 @@ npx drizzle-kit push      # Push schema changes directly
 
 ### Authentication
 
-- **Clerk** (`@clerk/nextjs`) - middleware in `middleware.ts` protects routes
+- **Clerk** (`@clerk/nextjs`) - proxy in `proxy.ts` protects routes
 - Matcher configured to skip static files and Next.js internals
 
 ### Database Layer
