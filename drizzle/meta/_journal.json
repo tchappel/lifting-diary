@@ -15,6 +15,13 @@
       "when": 1762596697474,
       "tag": "0001_lucky_prism",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1762646456656,
+      "tag": "0002_damp_mac_gargan",
+      "breakpoints": true
     }
   ]
 }
