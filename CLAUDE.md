@@ -11,6 +11,7 @@ Lifting diary app built with Next.js 16 (App Router), TypeScript, Clerk auth, Dr
 **IMPORTANT:** Before making changes to any area of the project, check the `/docs` directory for domain-specific coding standards and guidelines.
 
 Current documentation:
+
 - **`docs/ui.md`** - UI component standards (shadcn/ui usage, theming, date formatting)
 - **`docs/data-fetching.md`** - Data fetching patterns (Server Components, helper functions, RLS policy)
 

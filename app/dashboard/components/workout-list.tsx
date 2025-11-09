@@ -1,4 +1,6 @@
 import { WorkoutCard } from "@/app/dashboard/components/workout-card";
+import { isSameDay } from "date-fns";
+import { WorkoutListEmpty } from "./workout-list-empty";
 
 const mockWorkouts = [
   {
@@ -49,16 +51,32 @@ const mockWorkouts = [
   },
 ] as const;
 
-export async function WorkoutList() {
+type WorkoutListProps = {
+  filterOptions?: {
+    date?: Date;
+  };
+};
+
+export async function WorkoutList({ filterOptions }: WorkoutListProps) {
+  const filteredWorkouts = filterOptions?.date
+    ? mockWorkouts.filter((workout) =>
+        isSameDay(workout.date, filterOptions.date!)
+      )
+    : mockWorkouts;
+
+  if (filteredWorkouts.length === 0) {
+    return <WorkoutListEmpty />;
+  }
+
   return (
     <div className="space-y-4">
-      {mockWorkouts.map((workout) => (
+      {filteredWorkouts.map((workout) => (
         <WorkoutCard
           key={workout.id}
           name={workout.name}
           description={workout.description}
           durationMinutes={workout.durationMinutes}
-          createdAt={workout.date}
+          date={workout.date}
         />
       ))}
     </div>

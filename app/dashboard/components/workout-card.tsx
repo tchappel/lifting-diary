@@ -6,19 +6,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Calendar, Clock } from "lucide-react";
+import { format } from "date-fns";
 
 type WorkoutCardProps = {
   name: string;
   description: string;
   durationMinutes: number;
-  createdAt: Date;
+  date: Date;
 };
 
 export function WorkoutCard({
   name,
   description,
   durationMinutes,
-  createdAt,
+  date,
 }: WorkoutCardProps) {
   return (
     <Card>
@@ -30,7 +31,7 @@ export function WorkoutCard({
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4" aria-label="Created at" />
-            {/* formattedDate here */}
+            {format(date, "do MMM yyyy")}
           </div>
         </div>
       </CardHeader>

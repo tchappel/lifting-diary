@@ -1,4 +1,5 @@
 import { ThemeProvider } from "@/components/theme-provider";
+import { TimezoneCookieSetter } from "@/components/timezone-cookie-setter";
 import {
   ClerkProvider,
   SignInButton,
@@ -37,6 +38,7 @@ export default function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
+          <TimezoneCookieSetter />
           <ThemeProvider
             attribute="class"
             defaultTheme="system"

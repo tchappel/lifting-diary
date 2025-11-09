@@ -43,7 +43,7 @@ export function DatePicker({
             id="date"
             className="w-48 justify-between font-normal"
           >
-            {date ? format(date, "d MMM yyyy") : placeholder}
+            {date ? format(date, "do MMM yyyy") : placeholder}
             <ChevronDownIcon />
           </Button>
         </PopoverTrigger>
