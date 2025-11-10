@@ -12,8 +12,11 @@ Lifting diary app built with Next.js 16 (App Router), TypeScript, Clerk auth, Dr
 
 Current documentation:
 
-- **`docs/ui.md`** - UI component standards (shadcn/ui usage, theming, date formatting)
+- **`docs/auth.md`** - Authentication patterns (Clerk integration, server-first auth, RLS, ownership verification)
 - **`docs/data-fetching.md`** - Data fetching patterns (Server Components, helper functions, RLS policy)
+- **`docs/data-mutation.md`** - Data mutation patterns (Server Actions, helper functions, validation, revalidation)
+- **`docs/forms.md`** - Form handling patterns (react-hook-form, Zod validation, Server Actions, error handling)
+- **`docs/ui.md`** - UI component standards (shadcn/ui usage, theming, date formatting)
 
 Always consult the relevant docs file before implementing features in that domain.
 
