@@ -22,32 +22,44 @@ Generate comprehensive domain-specific documentation for the Lifting Diary proje
      - Examples user wants covered
      - Any anti-patterns to highlight
 
-3. **Generate Documentation:**
+3. **Documentation Planning Checklist:**
 
-   - Create comprehensive markdown content similar in depth/structure to existing docs (ui.md, data-fetching.md, etc.)
-   - Include:
-     - Title and overview
-     - Core principles/mandatory standards
-     - Examples with ✅ DO / ❌ DON'T patterns
-     - Implementation guidelines
-     - Anti-patterns to avoid
-     - Summary checklist
-   - Use project context from CLAUDE.md (Next.js 16, TypeScript, Clerk, Drizzle, shadcn/ui, Tailwind v4)
-   - Match tone/style of existing docs
+   Before generating content, verify these elements are covered:
 
-4. **Preview & Approval:**
+   - [ ] Clear title and brief overview (2-3 sentences max)
+   - [ ] Core principles/mandatory standards (bullet form)
+   - [ ] Concrete ✅ DO / ❌ DON'T examples (code snippets)
+   - [ ] Anti-patterns section (what to avoid + why)
+   - [ ] Quick reference checklist at end
+   - [ ] Related doc links (sparse, only if clarifying)
+   - [ ] Project stack context where relevant (Next.js 16, TypeScript, Clerk, Drizzle, shadcn/ui, Tailwind v4)
+
+4. **Generate Documentation:**
+
+   **Writing Style Requirements:**
+
+   - **Prioritize brevity over grammar** - sentence fragments OK
+   - **Concise > perfect** - cut filler words aggressively
+   - Short sentences, active voice
+   - Aim 1,500-3,000 words
+   - Self-contained but tight - no unnecessary elaboration
+   - Code examples over prose explanations
+   - Match existing doc tone/style
+
+5. **Preview & Approval:**
 
    - Show full generated documentation content
    - Ask user: "Does this look good, or would you like me to make changes?"
    - If changes requested, iterate on content
-   - If approved, proceed to step 5
+   - If approved, proceed to step 6
 
-5. **Exit Plan Mode & Write:**
+6. **Exit Plan Mode & Write:**
+
    - Use ExitPlanMode tool to confirm you're ready to write
    - Write documentation to `/docs/<kebab-case-filename>.md`
    - Confirm completion with filepath
 
-6. **Link Documentation in CLAUDE.md:**
+7. **Link Documentation in CLAUDE.md:**
    - After successfully writing the file, use the Task tool to invoke the docs-linker agent
    - Provide context that a new documentation file was just created at the path
    - The docs-linker agent will automatically update CLAUDE.md's "Domain-Specific Guidelines" section with a reference to the new doc
@@ -63,6 +75,7 @@ Generate comprehensive domain-specific documentation for the Lifting Diary proje
 ```
 
 You'll be prompted to provide:
+
 1. Doc filename (e.g., "API Routes")
 2. What the documentation should cover (e.g., "standards for Next.js API routes and server actions")
 

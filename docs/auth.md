@@ -1,225 +1,26 @@
 # Authentication Standards
 
-## Overview
-
-This project uses **Clerk** for authentication with a server-first architecture. All authentication checks happen server-side using Server Components, Server Actions, and data helper functions. Client-side auth hooks are intentionally avoided to keep auth logic centralized and secure.
-
 ## Core Principles
 
-### 1. Server-First Authentication
+This project uses **Clerk** with a server-first architecture. All authentication happens server-side—client-side auth hooks are intentionally avoided.
 
-**MANDATORY**: All authentication checks MUST happen server-side.
+### Three Mandatory Rules
 
-- ✅ Use `auth()` from `@clerk/nextjs/server` in Server Components
-- ✅ Include auth checks in data helper functions
-- ❌ NEVER use client-side auth hooks (`useUser`, `useAuth`)
-- ❌ NEVER perform auth checks in Client Components
+1. **Server-First Authentication**: All auth checks MUST happen server-side using `auth()` from `@clerk/nextjs/server`
+2. **Row-Level Security (RLS)**: Every database query MUST filter by `userId`
+3. **Protected Helpers**: All data functions MUST include `import "server-only"`, auth checks, and RLS filtering
 
-### 2. Row-Level Security (RLS)
+### Protected Routes
 
-**MANDATORY**: Every database query MUST filter by `userId` to enforce data isolation.
+**Rule**: All routes require authentication except `/` (landing page). Unauthenticated users redirect to `/`.
 
-- ✅ Always include `userId` in WHERE clauses
-- ✅ Verify ownership before mutations
-- ❌ NEVER query without filtering by user
-- ❌ NEVER skip ownership checks
-
-### 3. Protected Helper Functions
-
-**MANDATORY**: All data helper functions MUST include:
-
-1. `import "server-only"` directive
-2. Auth check with `await auth()`
-3. RLS filtering by `userId`
-
----
-
-## Clerk Configuration
-
-### Installation
-
-```bash
-npm install @clerk/nextjs
-```
-
-**Version**: `@clerk/nextjs` v6.34.5 (or later)
-
-### Environment Variables
-
-Add to `.env` or `.env.local`:
-
-```text
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-```
-
-### Root Layout Setup
-
-**File**: `app/layout.tsx`
-
-```tsx
-import {
-  ClerkProvider,
-  SignInButton,
-  SignUpButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-} from "@clerk/nextjs";
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <ClerkProvider>
-      <html lang="en">
-        <body>
-          <header className="flex justify-end items-center p-4 gap-4">
-            <SignedOut>
-              <SignInButton mode="modal" />
-              <SignUpButton mode="modal" />
-            </SignedOut>
-            <SignedIn>
-              <UserButton />
-            </SignedIn>
-          </header>
-          <main>{children}</main>
-        </body>
-      </html>
-    </ClerkProvider>
-  );
-}
-```
-
-**Pattern**:
-
-- Wrap entire app with `<ClerkProvider>`
-- Use `<SignedIn>` / `<SignedOut>` for conditional UI
-- Place auth UI in global header
-
----
-
-## Middleware Configuration
-
-### Proxy Setup
-
-**File**: `proxy.ts` (root directory)
-
-```typescript
-import { clerkMiddleware } from "@clerk/nextjs/server";
-
-export const proxy = clerkMiddleware();
-
-export const config = {
-  matcher: [
-    // Skip Next.js internals and static files
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
-    "/(api|trpc)(.*)",
-  ],
-};
-```
-
-**Pattern**:
-
-- ✅ Use `clerkMiddleware()` from `@clerk/nextjs/server`
-- ✅ Export as named export `proxy`
-- ✅ Configure matcher to skip static assets
-- ❌ DON'T use deprecated `authMiddleware` (pre-v5)
-
-**Important**: Middleware runs on matched routes but doesn't enforce authentication by default. Auth enforcement happens in components/helpers.
-
----
-
-## Protected Routes
-
-### Route Protection Strategy
-
-**Rule**: All routes MUST be protected except the landing page (`/`). Unauthenticated users are redirected to `/`.
-
-### Implementation
-
-**File**: `proxy.ts`
-
-```typescript
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-
-const isProtectedRoute = createRouteMatcher([
-  "/workouts(.*)",
-  "/exercises(.*)",
-  "/dashboard(.*)",
-  // Add other protected routes here
-]);
-
-export const proxy = clerkMiddleware(async (auth, req) => {
-  // Skip protection for landing page
-  if (req.nextUrl.pathname === "/") {
-    return;
-  }
-
-  // Protect all other routes
-  if (isProtectedRoute(req)) {
-    await auth.protect({
-      unauthenticatedUrl: "/",
-    });
-  }
-});
-
-export const config = {
-  matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
-  ],
-};
-```
-
-### Route Patterns
-
-✅ **Public Routes** (accessible without auth):
-
-- `/` - Landing page
-
-❌ **Protected Routes** (require authentication):
-
-- `/workouts/*` - All workout pages
-- `/exercises/*` - All exercise pages
-- `/dashboard/*` - Dashboard pages
-- All other routes not explicitly public
-
-### Alternative: Protect All Except Home
-
-For simpler configuration, protect everything except `/`:
-
-```typescript
-import { clerkMiddleware } from "@clerk/nextjs/server";
-
-export const proxy = clerkMiddleware(async (auth, req) => {
-  // Only allow unauthenticated access to landing page
-  if (req.nextUrl.pathname !== "/") {
-    await auth.protect({
-      unauthenticatedUrl: "/",
-    });
-  }
-});
-```
-
-**Pattern**:
-
-- ✅ Use `auth.protect()` to enforce authentication
-- ✅ Set `unauthenticatedUrl: "/"` to redirect to landing page
-- ✅ Explicitly check for `/` to allow public access
-- ❌ DON'T rely on client-side route guards
-- ❌ DON'T duplicate route protection logic
+Protected: `/workouts/*`, `/exercises/*`, `/dashboard/*`, and all other routes.
 
 ---
 
 ## Authentication Patterns
 
-### Pattern 1: Server Component with Auth Check
-
-**Use when**: Rendering authenticated pages/components
+### Pattern 1: Server Components
 
 ```tsx
 import { auth } from "@clerk/nextjs/server";
@@ -244,38 +45,21 @@ export async function WorkoutList() {
 }
 ```
 
-**Steps**:
-
-1. Import `auth` from `@clerk/nextjs/server`
-2. Call `await auth()` to get auth object
-3. Extract `userId` from result
-4. Throw error if `userId` is null/undefined
-5. Pass `userId` to data helpers
-
-**Alternative Error Handling**:
-
-```tsx
-import { redirect } from "next/navigation";
-
-if (!userId) {
-  redirect("/sign-in");
-}
-```
+**Steps**: Import `auth` → Call `await auth()` → Extract `userId` → Throw if null → Pass to helpers
 
 ---
 
 ### Pattern 2: Data Helper Functions
 
-**Use when**: Creating reusable data fetching/mutation functions
+Two approaches for data helpers:
 
-**File**: `data/workouts.ts`
+**Approach A: Helper accepts `userId` parameter** (for lists/collections)
 
 ```typescript
 import "server-only";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { workouts } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 export async function getWorkoutsByUserId(userId: string) {
   return await db
@@ -284,6 +68,16 @@ export async function getWorkoutsByUserId(userId: string) {
     .where(eq(workouts.userId, userId))
     .orderBy(desc(workouts.date));
 }
+```
+
+**Approach B: Helper includes auth check** (for single resources)
+
+```typescript
+import "server-only";
+import { auth } from "@clerk/nextjs/server";
+import { db } from "@/db";
+import { workouts } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function getWorkoutById(workoutId: string) {
   const { userId } = await auth();
@@ -298,7 +92,7 @@ export async function getWorkoutById(workoutId: string) {
     .where(eq(workouts.id, workoutId))
     .limit(1);
 
-  // RLS: Verify ownership
+  // Verify ownership
   if (workout[0]?.userId !== userId) {
     throw new Error("Forbidden: Access denied");
   }
@@ -307,49 +101,29 @@ export async function getWorkoutById(workoutId: string) {
 }
 ```
 
-**MANDATORY Requirements**:
+**Mandatory Requirements**:
 
-1. ✅ Start file with `import "server-only"`
-2. ✅ Import `auth` from `@clerk/nextjs/server`
-3. ✅ Check `userId` exists
-4. ✅ Filter queries by `userId` (RLS)
-5. ✅ Verify ownership for single-resource queries
-
-**Two Approaches**:
-
-**Approach A**: Helper accepts `userId` parameter
-
-- Caller performs auth check
-- Helper focuses on data logic + RLS filtering
-- Use for list/collection queries
-
-**Approach B**: Helper includes auth check internally
-
-- Self-contained authentication
-- Includes ownership verification
-- Use for single-resource queries (by ID)
+- ✅ Start with `import "server-only"`
+- ✅ Check `userId` exists
+- ✅ Filter queries by `userId` (RLS)
+- ✅ Verify ownership for single-resource queries
 
 ---
 
 ### Pattern 3: Server Actions
-
-**Use when**: Handling form submissions, mutations
-
-**File**: `actions/workouts.ts`
 
 ```typescript
 "use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createWorkoutHelper, updateWorkoutHelper } from "@/data/workouts";
+import { createWorkoutHelper } from "@/data/workouts";
 
 export async function createWorkoutAction(formData: FormData) {
   const name = formData.get("name") as string;
   const description = formData.get("description") as string;
 
   try {
-    // Helper includes auth check
     const workout = await createWorkoutHelper({
       name,
       description,
@@ -367,11 +141,13 @@ export async function createWorkoutAction(formData: FormData) {
 }
 ```
 
-**Corresponding Helper** (`data/workouts.ts`):
+**Corresponding Helper**:
 
 ```typescript
 import "server-only";
 import { auth } from "@clerk/nextjs/server";
+import { db } from "@/db";
+import { workouts } from "@/db/schema";
 
 export async function createWorkoutHelper(data: {
   name: string;
@@ -387,7 +163,7 @@ export async function createWorkoutHelper(data: {
   const [workout] = await db
     .insert(workouts)
     .values({
-      userId, // Associate with user
+      userId, // Always associate with user
       ...data,
     })
     .returning();
@@ -396,18 +172,9 @@ export async function createWorkoutHelper(data: {
 }
 ```
 
-**Pattern**:
-
-- ✅ Server Action handles framework logic (revalidation, redirects, error handling)
-- ✅ Helper function includes auth check + business logic
-- ✅ Always associate created records with `userId`
-- ✅ Return errors for form validation
-
 ---
 
 ### Pattern 4: Conditional UI (Client Components)
-
-**Use when**: Showing/hiding UI based on auth state
 
 ```tsx
 import {
@@ -433,32 +200,15 @@ export default function Header() {
 }
 ```
 
-**Available Components**:
-
-- `<SignedIn>`: Renders children only when authenticated
-- `<SignedOut>`: Renders children only when NOT authenticated
-- `<UserButton>`: Pre-built user menu/profile button
-- `<SignInButton>`: Triggers sign-in flow
-- `<SignUpButton>`: Triggers sign-up flow
-
-**Component Props**:
-
-```tsx
-<SignInButton mode="modal" /> // Opens in modal
-<SignInButton mode="redirect" redirectUrl="/dashboard" /> // Redirects after sign-in
-<UserButton afterSignOutUrl="/" /> // Redirect after sign-out
-```
+**Available Components**: `<SignedIn>`, `<SignedOut>`, `<UserButton>`, `<SignInButton>`, `<SignUpButton>`
 
 ---
 
 ## Database Schema
 
-### User ID Storage
-
-All user-owned tables MUST include a `userId` field:
+All user-owned tables MUST include `userId`:
 
 ```typescript
-// db/schema.ts
 import { pgTable, text, uuid, timestamp } from "drizzle-orm/pg-core";
 
 export const workouts = pgTable("workouts", {
@@ -467,31 +217,22 @@ export const workouts = pgTable("workouts", {
   name: text("name").notNull(),
   date: timestamp("date", { withTimezone: true }).notNull(),
 });
-
-export const exercises = pgTable("exercises", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id").notNull(), // Clerk user ID
-  name: text("name").notNull(),
-});
 ```
 
 **Requirements**:
 
-- ✅ Field name: `userId` (camelCase in code)
-- ✅ Column name: `user_id` (snake_case in DB)
-- ✅ Type: `text` (Clerk user IDs are strings)
-- ✅ Always `notNull()`
-- ✅ Used for RLS filtering in queries
+- Field: `userId` (camelCase in code)
+- Column: `user_id` (snake_case in DB)
+- Type: `text` (Clerk IDs are strings)
+- Always `notNull()`
 
 ---
 
 ## Row-Level Security (RLS)
 
-### Querying User Data
+### Querying
 
-**MANDATORY**: Always filter by `userId`
-
-✅ **DO**: Filter by userId
+✅ **Always filter by userId**:
 
 ```typescript
 // List queries
@@ -500,31 +241,23 @@ const workouts = await db
   .from(workouts)
   .where(eq(workouts.userId, userId));
 
-// Single record with compound filter
+// Single record with ownership check
 const workout = await db
   .select()
   .from(workouts)
   .where(and(eq(workouts.id, workoutId), eq(workouts.userId, userId)));
 ```
 
-❌ **DON'T**: Query without filtering
+❌ **Never query without filtering**:
 
 ```typescript
 // WRONG - Returns ALL users' data
 const workouts = await db.select().from(workouts);
-
-// WRONG - No userId filter
-const workout = await db
-  .select()
-  .from(workouts)
-  .where(eq(workouts.id, workoutId));
 ```
 
-### Mutations (Insert/Update/Delete)
+### Mutations
 
-**MANDATORY**: Verify ownership before mutations
-
-✅ **DO**: Verify ownership
+✅ **Always verify ownership before mutations**:
 
 ```typescript
 export async function deleteWorkoutHelper(workoutId: string) {
@@ -551,92 +284,44 @@ export async function deleteWorkoutHelper(workoutId: string) {
 }
 ```
 
-❌ **DON'T**: Skip ownership check
+✅ **Always include `userId` in inserts**:
 
 ```typescript
-// WRONG - Deletes ANY workout
-export async function deleteWorkoutHelper(workoutId: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  await db.delete(workouts).where(eq(workouts.id, workoutId));
-}
-```
-
-### Insert Operations
-
-**MANDATORY**: Always include `userId` when creating records
-
-✅ **DO**: Associate with user
-
-```typescript
-export async function createWorkoutHelper(data: WorkoutInput) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  const [workout] = await db
-    .insert(workouts)
-    .values({
-      userId, // REQUIRED
-      ...data,
-    })
-    .returning();
-
-  return workout;
-}
+const [workout] = await db
+  .insert(workouts)
+  .values({
+    userId, // REQUIRED
+    ...data,
+  })
+  .returning();
 ```
 
 ---
 
 ## Common Anti-Patterns
 
-### ❌ ANTI-PATTERN 1: Client-Side Auth Checks
+### ❌ Client-Side Auth Checks
 
 ```tsx
-// WRONG - Client Component with auth
+// WRONG - Not secure
 "use client";
 import { useUser } from "@clerk/nextjs";
 
 export function MyComponent() {
   const { user } = useUser();
-
   if (!user) return <div>Please sign in</div>;
-
   return <div>Welcome {user.firstName}</div>;
 }
 ```
 
-**Why it's wrong**: Auth state can be manipulated client-side. Not secure for protecting data/actions.
-
-**Correct approach**:
-
-```tsx
-// Server Component parent
-import { auth } from "@clerk/nextjs/server";
-
-export async function MyComponentWrapper() {
-  const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  return <MyClientComponent />;
-}
-
-// Client Component (no auth logic)
-("use client");
-export function MyClientComponent() {
-  return <div>Protected content</div>;
-}
-```
+**Fix**: Use Server Component parent with auth check, pass data to Client Component.
 
 ---
 
-### ❌ ANTI-PATTERN 2: Missing "server-only" Directive
+### ❌ Missing "server-only" Directive
 
 ```typescript
-// WRONG - Missing directive
+// WRONG - Could leak to client bundle
 import { db } from "@/db";
 
 export async function getWorkouts(userId: string) {
@@ -644,23 +329,11 @@ export async function getWorkouts(userId: string) {
 }
 ```
 
-**Why it's wrong**: Function could accidentally be imported in Client Components, leaking DB logic to browser bundle.
-
-**Correct approach**:
-
-```typescript
-// CORRECT
-import "server-only";
-import { db } from "@/db";
-
-export async function getWorkouts(userId: string) {
-  return await db.select().from(workouts).where(eq(workouts.userId, userId));
-}
-```
+**Fix**: Always start data helpers with `import "server-only"`.
 
 ---
 
-### ❌ ANTI-PATTERN 3: No RLS Filtering
+### ❌ No RLS Filtering
 
 ```typescript
 // WRONG - Returns all users' data
@@ -672,89 +345,26 @@ export async function getAllWorkouts() {
 }
 ```
 
-**Correct approach**:
-
-```typescript
-export async function getAllWorkouts() {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  return await db.select().from(workouts).where(eq(workouts.userId, userId)); // RLS filter
-}
-```
+**Fix**: Always include `.where(eq(workouts.userId, userId))`.
 
 ---
 
-### ❌ ANTI-PATTERN 4: Deprecated Middleware
+### ❌ Skipping Ownership Verification
 
 ```typescript
-// WRONG - Using deprecated authMiddleware
-import { authMiddleware } from "@clerk/nextjs";
-
-export default authMiddleware();
-
-export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
-};
-```
-
-**Correct approach**:
-
-```typescript
-// CORRECT - Use clerkMiddleware
-import { clerkMiddleware } from "@clerk/nextjs/server";
-
-export const proxy = clerkMiddleware();
-
-export const config = {
-  matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
-  ],
-};
-```
-
----
-
-### ❌ ANTI-PATTERN 5: Skipping Ownership Verification
-
-```typescript
-// WRONG - No ownership check before update
+// WRONG - Updates ANY workout
 export async function updateWorkout(
   workoutId: string,
   updates: Partial<Workout>
 ) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-
-  await db.update(workouts).set(updates).where(eq(workouts.id, workoutId)); // Updates ANY workout!
-}
-```
-
-**Correct approach**:
-
-```typescript
-export async function updateWorkout(
-  workoutId: string,
-  updates: Partial<Workout>
-) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  // Verify ownership first
-  const existing = await db
-    .select()
-    .from(workouts)
-    .where(eq(workouts.id, workoutId))
-    .limit(1);
-
-  if (!existing[0] || existing[0].userId !== userId) {
-    throw new Error("Forbidden: Access denied");
-  }
 
   await db.update(workouts).set(updates).where(eq(workouts.id, workoutId));
 }
 ```
+
+**Fix**: Fetch record first, verify `userId` matches, then update.
 
 ---
 
@@ -762,20 +372,18 @@ export async function updateWorkout(
 
 ### Standard Error Messages
 
-Use consistent error messages:
-
 ```typescript
-// Unauthorized (no userId)
+// No userId
 throw new Error("Unauthorized");
 
-// Forbidden (user doesn't own resource)
+// User doesn't own resource
 throw new Error("Forbidden: Access denied");
 
-// Not found
+// Resource doesn't exist
 throw new Error("Resource not found");
 ```
 
-### Error Handling in Server Actions
+### Server Actions
 
 ```typescript
 "use server";
@@ -794,83 +402,87 @@ export async function deleteWorkoutAction(workoutId: string) {
 }
 ```
 
-**Pattern**:
+---
 
-- Catch errors from helpers
-- Return `{ error: string }` for form validation
-- Let framework errors (redirect) throw normally
+## Configuration
+
+### Middleware (proxy.ts)
+
+```typescript
+import { clerkMiddleware } from "@clerk/nextjs/server";
+
+export const proxy = clerkMiddleware();
+
+export const config = {
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
+};
+```
+
+**Note**: Use `clerkMiddleware()`, not deprecated `authMiddleware()`.
+
+### Root Layout
+
+```tsx
+import { ClerkProvider } from "@clerk/nextjs";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <ClerkProvider>
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    </ClerkProvider>
+  );
+}
+```
 
 ---
 
 ## File Organization
 
-### Recommended Structure
-
 ```
 /
-├── proxy.ts                      # Clerk middleware
+├── proxy.ts                    # Clerk middleware
 ├── app/
-│   ├── layout.tsx               # ClerkProvider wrapper
+│   ├── layout.tsx             # ClerkProvider wrapper
 │   └── dashboard/
 │       └── components/
 │           └── workout-list.tsx # Server Component with auth
 ├── data/
-│   ├── workouts.ts              # Data helpers (server-only)
-│   └── exercises.ts             # Data helpers (server-only)
+│   ├── workouts.ts            # Data helpers (server-only)
+│   └── exercises.ts
 ├── actions/
-│   ├── workouts.ts              # Server Actions
-│   └── exercises.ts             # Server Actions
+│   ├── workouts.ts            # Server Actions
+│   └── exercises.ts
 └── db/
-    ├── schema.ts                # Tables with userId fields
-    └── index.ts                 # DB client
+    ├── schema.ts              # Tables with userId
+    └── index.ts
 ```
 
-### File Patterns
-
-**Data Helpers** (`data/*.ts`):
-
-- Start with `import "server-only"`
-- Include auth checks
-- Implement RLS filtering
-- Export async functions
-
-**Server Actions** (`actions/*.ts` or inline):
-
-- Start with `"use server"`
-- Call data helpers
-- Handle revalidation/redirects
-- Return errors for forms
-
-**Server Components**:
-
-- Import `auth` from `@clerk/nextjs/server`
-- Perform auth checks
-- Pass `userId` to helpers
-- Render UI
-
 ---
 
-## Quick Reference Checklist
-
-Before shipping auth-related code, verify:
+## Pre-Ship Checklist
 
 - [ ] `ClerkProvider` wraps app in root layout
-- [ ] Middleware uses `clerkMiddleware()` (not deprecated `authMiddleware`)
+- [ ] Middleware uses `clerkMiddleware()` (not `authMiddleware`)
 - [ ] All data helpers start with `import "server-only"`
-- [ ] All data helpers include auth check with `await auth()`
-- [ ] All database queries filter by `userId`
+- [ ] All data helpers include `await auth()` check
+- [ ] All queries filter by `userId`
 - [ ] Mutations verify ownership before executing
-- [ ] Server Actions call helpers (don't duplicate auth logic)
+- [ ] Server Actions call helpers (no duplicate auth logic)
 - [ ] All tables include `userId: text("user_id").notNull()`
-- [ ] No client-side auth hooks (`useUser`, `useAuth`) used
-- [ ] Errors distinguish between "Unauthorized" and "Forbidden"
+- [ ] No client-side auth hooks used
+- [ ] Errors distinguish "Unauthorized" vs "Forbidden"
 
 ---
 
-## Additional Resources
+## Resources
 
-- [Clerk Next.js Documentation](https://clerk.com/docs/quickstarts/nextjs)
-- [Clerk Middleware Guide](https://clerk.com/docs/references/nextjs/clerk-middleware)
-- [Next.js App Router Authentication](https://nextjs.org/docs/app/building-your-application/authentication)
-- Project docs: `/docs/data-fetching.md` (data layer patterns)
-- Project docs: `/docs/data-mutation.md` (mutation patterns)
+- [Clerk Next.js Quickstart](https://clerk.com/docs/nextjs/getting-started/quickstart)
