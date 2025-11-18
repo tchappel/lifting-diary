@@ -1,27 +1,21 @@
 import { WorkoutCard } from "@/app/dashboard/components/workout-card";
-import { getWorkoutsByUserIdAndDate } from "@/data/workouts";
-import { auth } from "@clerk/nextjs/server";
+import { getWorkouts } from "@/data/workouts";
 import { WorkoutListEmpty } from "./workout-list-empty";
 
 type WorkoutListProps = {
-  filterOptions: {
-    date: Date;
-  };
+  startDate: Date;
+  endDate: Date;
 };
 
-export async function WorkoutList({ filterOptions }: WorkoutListProps) {
-  const { userId } = await auth();
+export async function WorkoutList({ startDate, endDate }: WorkoutListProps) {
+  const workouts = await getWorkouts({
+    filter: {
+      startDate,
+      endDate,
+    },
+  });
 
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  const workouts = await getWorkoutsByUserIdAndDate(
-    userId,
-    filterOptions?.date
-  );
-
-  if (workouts.length === 0) {
+  if (!workouts || workouts.length === 0) {
     return <WorkoutListEmpty />;
   }
 
@@ -30,6 +24,7 @@ export async function WorkoutList({ filterOptions }: WorkoutListProps) {
       {workouts.map((workout) => (
         <WorkoutCard
           key={workout.id}
+          id={workout.id}
           name={workout.name}
           description={workout.description}
           durationMinutes={workout.durationMinutes}

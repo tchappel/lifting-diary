@@ -1,57 +1,70 @@
 import { TZDate } from "@date-fns/tz";
-import { format, isValid, parse } from "date-fns";
+import {
+  endOfDay,
+  format,
+  isValid as isValidDate,
+  parseISO,
+  startOfDay,
+} from "date-fns";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { DatePicker } from "./components/date-picker";
+import { z } from "zod";
+import { WorkoutDatePicker } from "./components/workout-date-picker";
 import { WorkoutList } from "./components/workout-list";
 import { WorkoutSkeleton } from "./components/workout-skeleton";
 
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+  .refine((val) => isValidDate(parseISO(val)), "Invalid date");
+
+type SearchParams = {
+  date?: string;
+};
+
 type DashboardPageProps = {
-  searchParams: Promise<{
-    date?: string;
-  }>;
+  searchParams: Promise<SearchParams>;
 };
 
 export default async function DashboardPage({
   searchParams,
 }: DashboardPageProps) {
-  const { date } = await searchParams;
+  const { date: dateParam } = await searchParams;
+
   const cookieStore = await cookies();
+  const userTimezone = cookieStore.get("user_timezone")?.value || "UTC";
+  const isValidDateParam =
+    !!dateParam && dateSchema.safeParse(dateParam).success;
 
-  // Get user timezone (default to UTC)
-  const timezone = cookieStore.get("user_timezone")?.value || "UTC";
-
-  // Get today's date in user's timezone
-  const today = format(new TZDate(new Date(), timezone), "yyyy-MM-dd");
-
-  // If no query param date → redirect to /dashboard?date=${today} in "yyyy-MM-dd" format
-  if (!date) {
-    redirect(`/dashboard?date=${today}`);
+  if (!isValidDateParam) {
+    const today = new TZDate(new Date(), userTimezone);
+    const params = new URLSearchParams();
+    params.set("date", format(today, "yyyy-MM-dd"));
+    redirect(`/dashboard?${params.toString()}`);
   }
 
-  // If there is date query param date
-
-  // Validate date param (fix this)
-  const parsed = parse(date, "yyyy-MM-dd", new Date());
-  const valid = isValid(parsed) && format(parsed, "yyyy-MM-dd") === date;
-
-  if (!valid) {
-    redirect(`/dashboard?date=${today}`);
-  }
-
-  // if valid, pass a Date to DatePicker and to WorkoutList
-
+  const date = new TZDate(parseISO(dateParam!), userTimezone);
+  const startDate = startOfDay(date);
+  const endDate = endOfDay(date);
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Date Picker */}
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <DatePicker initialValue={parsed} />
-        <Suspense key={date} fallback={<WorkoutSkeleton />}>
-          <WorkoutList filterOptions={{ date: parsed }} />
-        </Suspense>
+    <>
+      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+        Dashboard
+      </h1>
+      <p className="text-muted-foreground mb-6">
+        Track your workouts and progress
+      </p>
+      <div className="flex gap-4">
+        <div className="shrink-0">
+          <WorkoutDatePicker date={date} />
+        </div>
+        <div className="flex-1">
+          <Suspense fallback={<WorkoutSkeleton />}>
+            <WorkoutList startDate={startDate} endDate={endDate} />
+          </Suspense>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

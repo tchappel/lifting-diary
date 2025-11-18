@@ -1,33 +1,25 @@
-import { relations } from "drizzle-orm"
-import { exercises, workouts, workoutExercises, exerciseSets } from "./schema"
+// relations.ts
+import { relations } from "drizzle-orm";
+import { exercises, exerciseSets, workouts } from "./schema";
 
-// Exercises relations
-export const exercisesRelations = relations(exercises, ({ many }) => ({
-  workoutExercises: many(workoutExercises),
-  sets: many(exerciseSets),
-}))
-
-// Workouts relations
+// One workout has many exercises
 export const workoutsRelations = relations(workouts, ({ many }) => ({
-  workoutExercises: many(workoutExercises),
-}))
+  exercises: many(exercises),
+}));
 
-// Workout exercises relations
-export const workoutExercisesRelations = relations(workoutExercises, ({ one }) => ({
+// One exercise belongs to workout and has many sets
+export const exercisesRelations = relations(exercises, ({ one, many }) => ({
   workout: one(workouts, {
-    fields: [workoutExercises.workoutId],
+    fields: [exercises.workoutId],
     references: [workouts.id],
   }),
-  exercise: one(exercises, {
-    fields: [workoutExercises.exerciseId],
-    references: [exercises.id],
-  }),
-}))
+  sets: many(exerciseSets),
+}));
 
-// Exercise sets relations
+// One set belongs to exercise
 export const exerciseSetsRelations = relations(exerciseSets, ({ one }) => ({
   exercise: one(exercises, {
     fields: [exerciseSets.exerciseId],
     references: [exercises.id],
   }),
-}))
+}));

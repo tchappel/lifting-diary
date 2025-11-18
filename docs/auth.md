@@ -6,9 +6,9 @@ This project uses **Clerk** with a server-first architecture. All authentication
 
 ### Three Mandatory Rules
 
-1. **Server-First Authentication**: All auth checks MUST happen server-side using `auth()` from `@clerk/nextjs/server`
+1. **Server-First Authentication**: All auth checks MUST happen in data helpers using `authClient()` from `@/lib/auth`
 2. **Row-Level Security (RLS)**: Every database query MUST filter by `userId`
-3. **Protected Helpers**: All data functions MUST include `import "server-only"`, auth checks, and RLS filtering
+3. **Protected Helpers**: All data functions MUST include `import "server-only"` and call `authClient()` internally
 
 ### Protected Routes
 
@@ -20,20 +20,72 @@ Protected: `/workouts/*`, `/exercises/*`, `/dashboard/*`, and all other routes.
 
 ## Authentication Patterns
 
-### Pattern 1: Server Components
+### Pattern 1: Data Helper Functions (Standard)
 
-```tsx
-import { auth } from "@clerk/nextjs/server";
-import { getWorkoutsByUserId } from "@/data/workouts";
+All data helpers use `authClient()` internally - no parameters needed from caller.
 
-export async function WorkoutList() {
-  const { userId } = await auth();
+```typescript
+import "server-only";
+import { db } from "@/db";
+import { workouts } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { authClient } from "@/lib/auth";
 
-  if (!userId) {
-    throw new Error("Unauthorized");
+export async function getWorkouts() {
+  const { userId } = await authClient();
+
+  return await db
+    .select()
+    .from(workouts)
+    .where(eq(workouts.userId, userId))
+    .orderBy(desc(workouts.date));
+}
+```
+
+**For single-resource queries, always verify ownership:**
+
+```typescript
+import "server-only";
+import { db } from "@/db";
+import { workouts } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { authClient, ForbiddenError } from "@/lib/auth";
+
+export async function getWorkoutById(workoutId: string) {
+  const { userId } = await authClient();
+
+  const workout = await db.query.workouts.findFirst({
+    where: eq(workouts.id, workoutId),
+  });
+
+  // Verify ownership
+  if (workout && workout.userId !== userId) {
+    throw new ForbiddenError();
   }
 
-  const workouts = await getWorkoutsByUserId(userId);
+  return workout;
+}
+```
+
+**Mandatory Requirements**:
+
+- ✅ Start with `import "server-only"`
+- ✅ Call `authClient()` at function start
+- ✅ Filter queries by `userId` (RLS)
+- ✅ Verify ownership for single-resource queries
+
+---
+
+### Pattern 2: Server Components
+
+Server Components just call data helpers - no auth logic needed.
+
+```tsx
+import { getWorkouts } from "@/data/workouts";
+import { WorkoutCard } from "@/components/workout-card";
+
+export async function WorkoutList() {
+  const workouts = await getWorkouts();
 
   return (
     <div className="space-y-4">
@@ -45,68 +97,9 @@ export async function WorkoutList() {
 }
 ```
 
-**Steps**: Import `auth` → Call `await auth()` → Extract `userId` → Throw if null → Pass to helpers
+**Steps**: Import helper → Call helper → Render data
 
----
-
-### Pattern 2: Data Helper Functions
-
-Two approaches for data helpers:
-
-**Approach A: Helper accepts `userId` parameter** (for lists/collections)
-
-```typescript
-import "server-only";
-import { db } from "@/db";
-import { workouts } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
-
-export async function getWorkoutsByUserId(userId: string) {
-  return await db
-    .select()
-    .from(workouts)
-    .where(eq(workouts.userId, userId))
-    .orderBy(desc(workouts.date));
-}
-```
-
-**Approach B: Helper includes auth check** (for single resources)
-
-```typescript
-import "server-only";
-import { auth } from "@clerk/nextjs/server";
-import { db } from "@/db";
-import { workouts } from "@/db/schema";
-import { eq } from "drizzle-orm";
-
-export async function getWorkoutById(workoutId: string) {
-  const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  const workout = await db
-    .select()
-    .from(workouts)
-    .where(eq(workouts.id, workoutId))
-    .limit(1);
-
-  // Verify ownership
-  if (workout[0]?.userId !== userId) {
-    throw new Error("Forbidden: Access denied");
-  }
-
-  return workout[0];
-}
-```
-
-**Mandatory Requirements**:
-
-- ✅ Start with `import "server-only"`
-- ✅ Check `userId` exists
-- ✅ Filter queries by `userId` (RLS)
-- ✅ Verify ownership for single-resource queries
+Auth + ownership verification happens inside the helper.
 
 ---
 
@@ -117,14 +110,14 @@ export async function getWorkoutById(workoutId: string) {
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createWorkoutHelper } from "@/data/workouts";
+import { createWorkout } from "@/data/workouts";
 
 export async function createWorkoutAction(formData: FormData) {
   const name = formData.get("name") as string;
   const description = formData.get("description") as string;
 
   try {
-    const workout = await createWorkoutHelper({
+    const workout = await createWorkout({
       name,
       description,
       date: new Date(),
@@ -145,20 +138,16 @@ export async function createWorkoutAction(formData: FormData) {
 
 ```typescript
 import "server-only";
-import { auth } from "@clerk/nextjs/server";
+import { authClient, UnauthorizedError, ForbiddenError } from "@/lib/auth";
 import { db } from "@/db";
 import { workouts } from "@/db/schema";
 
-export async function createWorkoutHelper(data: {
+export async function createWorkout(data: {
   name: string;
   description?: string;
   date: Date;
 }) {
-  const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  const { userId } = await authClient();
 
   const [workout] = await db
     .insert(workouts)
@@ -314,7 +303,7 @@ export function MyComponent() {
 }
 ```
 
-**Fix**: Use Server Component parent with auth check, pass data to Client Component.
+**Fix**: Use Server Component with helper that calls `authClient()`.
 
 ---
 
@@ -324,7 +313,7 @@ export function MyComponent() {
 // WRONG - Could leak to client bundle
 import { db } from "@/db";
 
-export async function getWorkouts(userId: string) {
+export async function getWorkouts() {
   return await db.select().from(workouts);
 }
 ```
@@ -333,14 +322,34 @@ export async function getWorkouts(userId: string) {
 
 ---
 
+### ❌ Auth in Component Instead of Helper
+
+```tsx
+// WRONG - Auth logic in component
+import { auth } from "@clerk/nextjs/server";
+import { getWorkouts } from "@/data/workouts";
+
+export async function WorkoutList() {
+  const { userId } = await auth();
+  if (!userId) redirect("/");
+
+  const workouts = await getWorkouts(userId);
+  return <div>...</div>;
+}
+```
+
+**Fix**: Move auth into helper, component just calls helper.
+
+---
+
 ### ❌ No RLS Filtering
 
 ```typescript
 // WRONG - Returns all users' data
-export async function getAllWorkouts() {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+import { authClient } from "@/lib/auth";
 
+export async function getAllWorkouts() {
+  const { userId } = await authClient();
   return await db.select().from(workouts); // Missing WHERE clause
 }
 ```
@@ -353,13 +362,13 @@ export async function getAllWorkouts() {
 
 ```typescript
 // WRONG - Updates ANY workout
+import { authClient } from "@/lib/auth";
+
 export async function updateWorkout(
   workoutId: string,
   updates: Partial<Workout>
 ) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
+  const { userId } = await authClient();
   await db.update(workouts).set(updates).where(eq(workouts.id, workoutId));
 }
 ```
@@ -370,16 +379,20 @@ export async function updateWorkout(
 
 ## Error Handling
 
-### Standard Error Messages
+### Custom Error Classes
+
+`lib/auth.ts` exports two custom error types:
 
 ```typescript
-// No userId
-throw new Error("Unauthorized");
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth";
 
-// User doesn't own resource
-throw new Error("Forbidden: Access denied");
+// Thrown by authClient() when no userId
+throw new UnauthorizedError();
 
-// Resource doesn't exist
+// Thrown when user doesn't own resource
+throw new ForbiddenError();
+
+// Generic resource not found
 throw new Error("Resource not found");
 ```
 
@@ -388,12 +401,20 @@ throw new Error("Resource not found");
 ```typescript
 "use server";
 
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth";
+
 export async function deleteWorkoutAction(workoutId: string) {
   try {
-    await deleteWorkoutHelper(workoutId);
+    await deleteWorkout(workoutId);
     revalidatePath("/workouts");
     redirect("/workouts");
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return { error: "Please sign in to continue" };
+    }
+    if (error instanceof ForbiddenError) {
+      return { error: "You don't have permission to delete this workout" };
+    }
     if (error instanceof Error) {
       return { error: error.message };
     }
@@ -468,18 +489,71 @@ export default function RootLayout({
 
 ---
 
+## The authClient() Helper
+
+Located at `lib/auth.ts`:
+
+```typescript
+import "server-only";
+import { auth } from "@clerk/nextjs/server";
+import { cache } from "react";
+
+export class UnauthorizedError extends Error {
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
+export class ForbiddenError extends Error {
+  constructor(message = "Forbidden: Access denied") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
+export const authClient = cache(async () => {
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new UnauthorizedError();
+  }
+
+  return { userId };
+});
+```
+
+**Why cache()?**
+- React's `cache()` deduplicates calls within same request
+- Multiple helpers calling `authClient()` only execute once
+- Safe because middleware already validated session
+
+**Why lightweight auth()?**
+- Reads JWT from cookie/header
+- No backend call to Clerk
+- Middleware already verified session is active
+- Fast, sufficient for RLS
+
+**Custom errors?**
+- `UnauthorizedError` - no userId in session
+- `ForbiddenError` - user doesn't own resource
+- Both extend `Error` for standard error handling
+
+---
+
 ## Pre-Ship Checklist
 
 - [ ] `ClerkProvider` wraps app in root layout
 - [ ] Middleware uses `clerkMiddleware()` (not `authMiddleware`)
 - [ ] All data helpers start with `import "server-only"`
-- [ ] All data helpers include `await auth()` check
+- [ ] All data helpers call `authClient()` internally
 - [ ] All queries filter by `userId`
-- [ ] Mutations verify ownership before executing
+- [ ] Single-resource queries verify ownership
 - [ ] Server Actions call helpers (no duplicate auth logic)
 - [ ] All tables include `userId: text("user_id").notNull()`
 - [ ] No client-side auth hooks used
-- [ ] Errors distinguish "Unauthorized" vs "Forbidden"
+- [ ] Components don't call `auth()` directly
+- [ ] Use `UnauthorizedError` and `ForbiddenError` from lib/auth
 
 ---
 
