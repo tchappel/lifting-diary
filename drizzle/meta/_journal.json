@@ -22,6 +22,20 @@
       "when": 1762646456656,
       "tag": "0002_damp_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1762977494361,
+      "tag": "0003_restructure_exercise_sets",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1763060238798,
+      "tag": "0004_previous_calypso",
+      "breakpoints": true
     }
   ]
 }

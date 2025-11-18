@@ -54,7 +54,7 @@ export default function RootLayout({
                 <UserButton />
               </SignedIn>
             </header>
-            <main>{children}</main>
+            <main className="container mx-auto ">{children}</main>
           </ThemeProvider>
         </body>
       </html>
