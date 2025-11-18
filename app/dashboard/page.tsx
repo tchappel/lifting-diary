@@ -8,9 +8,11 @@ import {
 } from "date-fns";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { z } from "zod";
 import { WorkoutDatePicker } from "./components/workout-date-picker";
 import { WorkoutList } from "./components/workout-list";
+import { WorkoutSkeleton } from "./components/workout-skeleton";
 
 const dateSchema = z
   .string()
@@ -58,7 +60,9 @@ export default async function DashboardPage({
           <WorkoutDatePicker date={date} />
         </div>
         <div className="flex-1">
-          <WorkoutList startDate={startDate} endDate={endDate} />
+          <Suspense fallback={<WorkoutSkeleton />}>
+            <WorkoutList startDate={startDate} endDate={endDate} />
+          </Suspense>
         </div>
       </div>
     </>

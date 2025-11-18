@@ -15,14 +15,7 @@ export default function NotFound() {
   const router = useRouter();
 
   const handleBack = () => {
-    const ref = document.referrer;
-    const isInternal = !!ref && ref.startsWith(window.location.origin);
-
-    if (ref && isInternal) {
-      router.replace(ref);
-    } else {
-      router.replace("/dashboard");
-    }
+    router.push("/dashboard");
   };
 
   return (

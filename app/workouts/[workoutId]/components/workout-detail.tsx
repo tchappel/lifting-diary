@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { WorkoutWithExercisesAndSets } from "@/data/workouts";
+import { format, intervalToDuration } from "date-fns";
 import { Calendar, Clock, Dumbbell, Hash, Timer, Weight } from "lucide-react";
 
 type WorkoutDetailProps = {
@@ -15,29 +16,25 @@ type WorkoutDetailProps = {
 };
 
 export function WorkoutDetail({ workout }: WorkoutDetailProps) {
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }).format(new Date(date));
-  };
-
   const formatDuration = (minutes: number | null) => {
     if (!minutes) return "N/A";
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    const duration = intervalToDuration({ start: 0, end: minutes * 60 * 1000 });
+    const hours = duration.hours ?? 0;
+    const mins = duration.minutes ?? 0;
+    if (hours > 0) {
+      return `${hours}h ${mins}m`;
+    }
+    return `${mins}m`;
   };
 
   const formatRestTime = (seconds: number) => {
-    if (seconds >= 60) {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
+    const duration = intervalToDuration({ start: 0, end: seconds * 1000 });
+    const mins = duration.minutes ?? 0;
+    const secs = duration.seconds ?? 0;
+    if (mins > 0) {
       return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
     }
-    return `${seconds}s`;
+    return `${secs}s`;
   };
 
   return (
@@ -57,7 +54,7 @@ export function WorkoutDetail({ workout }: WorkoutDetailProps) {
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">
-                {workout.date && formatDate(workout.date)}
+                {workout.date && format(workout.date, "EEEE, MMMM d, yyyy")}
               </span>
             </div>
             {workout.durationMinutes && (
@@ -130,7 +127,7 @@ export function WorkoutDetail({ workout }: WorkoutDetailProps) {
                         </span>
                       </div>
                     </div>
-                    {set.order < (exercise.sets.length ?? 0) && <Separator />}
+                    {set.order !== exercise.sets.length && <Separator />}
                   </div>
                 ))}
               </div>

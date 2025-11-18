@@ -20,7 +20,7 @@ export const exercises = pgTable("exercises", {
   id: uuid("id").primaryKey().defaultRandom(),
   workoutId: uuid("workout_id")
     .notNull()
-    .references(() => workouts.id),
+    .references(() => workouts.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   order: integer("order").notNull(),
@@ -30,7 +30,7 @@ export const exerciseSets = pgTable("exercise_sets", {
   id: uuid("id").primaryKey().defaultRandom(),
   exerciseId: uuid("exercise_id")
     .notNull()
-    .references(() => exercises.id),
+    .references(() => exercises.id, { onDelete: "cascade" }),
   order: integer("order").notNull(),
   reps: integer("reps").notNull(),
   weightKg: real("weight_kg").notNull(),

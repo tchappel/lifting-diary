@@ -1,7 +1,5 @@
 import { WorkoutCard } from "@/app/dashboard/components/workout-card";
-import { getWorkouts, type Workout } from "@/data/workouts";
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { getWorkouts } from "@/data/workouts";
 import { WorkoutListEmpty } from "./workout-list-empty";
 
 type WorkoutListProps = {
@@ -10,14 +8,7 @@ type WorkoutListProps = {
 };
 
 export async function WorkoutList({ startDate, endDate }: WorkoutListProps) {
-  const { userId } = await auth();
-
-  if (!userId) {
-    redirect("/");
-  }
-
   const workouts = await getWorkouts({
-    userId,
     filter: {
       startDate,
       endDate,
@@ -30,7 +21,7 @@ export async function WorkoutList({ startDate, endDate }: WorkoutListProps) {
 
   return (
     <div className="space-y-4">
-      {workouts.map((workout: Workout) => (
+      {workouts.map((workout) => (
         <WorkoutCard
           key={workout.id}
           id={workout.id}
